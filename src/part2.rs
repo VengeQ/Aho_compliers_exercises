@@ -1,3 +1,4 @@
+
 extern crate regex;
 
 mod simple_translator;
@@ -5,20 +6,20 @@ mod lexer;
 
 use std::borrow::Cow;
 use std::time::Duration;
-
+#[allow(dead_code)]
 enum Types {
     List,
     Term,
 }
-
+#[allow(dead_code)]
 fn arithmetic(string: String) -> i32 {
     let mut stack: Vec<char> = Vec::new();
-    let trimmed_string: Vec<char> = string.clone().chars().into_iter().filter(|x| *x != ' ').collect();
+    let trimmed_string: Vec<char> = string.clone().chars().filter(|x| *x != ' ').collect();
     let mut is_digits = true;
     let mut result = 0;
     for value in &trimmed_string {
         match value {
-            x if value.is_digit(10) => stack.push(*value),
+            _ if value.is_digit(10) => stack.push(*value),
             '-' => {
                 if is_digits {
                     let tempo = stack.pop().unwrap().to_string().parse::<i32>().unwrap();
@@ -33,7 +34,7 @@ fn arithmetic(string: String) -> i32 {
                     result = stack.pop().unwrap().to_string().parse::<i32>().unwrap() + stack.pop().unwrap().to_string().parse::<i32>().unwrap();
                     is_digits = false;
                 } else {
-                    result = stack.pop().unwrap().to_string().parse::<i32>().unwrap() + result;
+                    result += stack.pop().unwrap().to_string().parse::<i32>().unwrap();
                 }
             }
 
@@ -43,7 +44,7 @@ fn arithmetic(string: String) -> i32 {
     }
     result
 }
-
+#[allow(dead_code)]
 fn harmonic_recursive(n: i64) -> f64 {
     fn go(n: f64, limit: i64, accum: f64) -> f64 {
         if n > limit as f64 { accum } else {
@@ -52,7 +53,7 @@ fn harmonic_recursive(n: i64) -> f64 {
     }
     go(1_f64, n, 0_f64)
 }
-
+#[allow(dead_code)]
 fn harmonic(n: i64) -> f64 {
     let mut result = 0_f64;
     for i in 1..n {
@@ -60,7 +61,7 @@ fn harmonic(n: i64) -> f64 {
     };
     result
 }
-
+#[allow(dead_code)]
 fn translate_to_postfix(string: &str) -> String {
     let regex = regex::Regex::new(r"(\d+)([-+])(\d+)").unwrap();
     let regex_2 = regex::Regex::new(r"(?P<first>([\d\s]+)([-+]))(?P<symbol>[-+])(?P<second>\d+)").unwrap();
@@ -85,7 +86,7 @@ fn translate_to_postfix(string: &str) -> String {
     };
     after
 }
-
+#[allow(dead_code)]
 fn rome(number: i32) -> String {
     let mut result ="".to_owned();
 

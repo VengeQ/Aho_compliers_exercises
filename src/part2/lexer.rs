@@ -1,26 +1,35 @@
 use std::collections::HashMap;
-use std::time::Duration;
 use std::ops::Deref;
 use core::fmt;
 use std::fmt::Debug;
+
+#[derive(Debug, Ord, PartialOrd, PartialEq, Eq, Hash, Clone)]
+enum Tag {
+    NUM,
+    WORD,
+    FALSE,
+    TRUE,
+}
 
 trait Token {
     fn value(&self) -> String;
 }
 
-impl Debug for Token {
+impl Debug for dyn Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.value())
     }
 }
 
-#[derive(Default, Debug, Ord, PartialOrd, PartialEq, Eq, Hash, Clone)]
+//Использую отдельно ключевые слова
+#[derive(Debug, Ord, PartialOrd, PartialEq, Eq, Hash, Clone)]
 struct Word {
-    word: String
+    tag: Tag,
+    word: String,
 }
 
 impl Word {
-    pub fn new(word: String) -> Self { Word { word } }
+    pub fn new(tag: Tag, word: String) -> Self { Word { tag, word } }
 }
 
 impl Token for Word {
@@ -29,29 +38,14 @@ impl Token for Word {
     }
 }
 
-
-#[derive(Default, Debug, Ord, PartialOrd, PartialEq, Eq, Hash, Clone)]
-struct Id {
-    id: String
-}
-
-impl Id {
-    pub fn new(id: String) -> Self { Id { id } }
-}
-
-impl Token for Id {
-    fn value(&self) -> String {
-        self.id.to_owned()
-    }
-}
-
-#[derive(Default, Debug, Ord, PartialOrd, PartialEq, Eq, Hash)]
+#[derive(Debug, Ord, PartialOrd, PartialEq, Eq, Hash)]
 struct Num {
-    num: i32
+    tag: Tag,
+    num: i32,
 }
 
 impl Num {
-    pub fn new(value: i32) -> Self { Num { num: value } }
+    pub fn new(value: i32) -> Self { Num { tag: Tag::NUM, num: value } }
 }
 
 impl<'t> Token for Num {
@@ -61,14 +55,13 @@ impl<'t> Token for Num {
 }
 
 
-type words = HashMap<Word, String>;
-type ids = HashMap<Id, String>;
+type Words = HashMap<String, Word>;
+
 struct Lexer {
     index: usize,
     line: i32,
     peek: char,
-    words: Box<words>,
-    ids:Box<ids>
+    words: Box<Words>,
 }
 
 
@@ -79,26 +72,64 @@ impl Lexer {
             line: 1,
             peek: ' ',
             words: Default::default(),
-            ids:Default::default()
         };
-        lexer.words.insert(Word::new("TRUE".to_owned()), "true".to_owned());
-        lexer.words.insert(Word::new("FALSE".to_owned()), "false".to_owned());
+        lexer.words.insert("TRUE".to_owned(), Word::new(Tag::TRUE, "TRUE".to_owned()));
+        lexer.words.insert("FALSE".to_owned(), Word::new(Tag::FALSE, "FALSE".to_owned()));
         lexer
     }
 
-    pub fn scan_string(&mut self, input: &str) -> Box<dyn Token> {
+    fn reserve(&mut self, word: Word) {
+        self.words.insert(word.value(), word);
+    }
+
+    pub fn read_char_or_return_eof(& mut self, input:&str) ->char{
+        let mut for_scan = input.split_at(self.index).1.chars();
+        self.peek=for_scan.next().unwrap_or_else('\0');
+        if !self.peek=='\0'{
+            self.index+=1;
+        }
+        self.peek
+    }
+
+
+    pub fn scan(&mut self, input: &str) -> Box<dyn Token> {
+        if self.index>=input.len(){
+            return Box::new(Word::new(Tag::WORD, "EOF".to_string()));
+        }
         let mut for_scan = input.split_at(self.index).1.chars();
         loop {
             self.index += 1;
             self.peek = for_scan.next().unwrap_or_else(|| '\0');
             match self.peek {
                 ' ' | '\t' => {}
-                '\n' => self.line += 1,
+                '\n' => {
+                    self.line += 1;
+                }
                 '\0' => {
                     self.line = -1;
-                    return Box::new(Word::new("EOF".to_string()))
+                    return Box::new(Word::new(Tag::WORD, "EOF".to_string()));
                 }
                 _ => break
+            }
+        }
+
+        if self.peek == '/' {
+            self.index += 1;
+            self.peek = for_scan.next().unwrap_or_else(|| '\0');
+            if self.peek == '/' {
+                loop {
+                    self.index += 1;
+                    self.peek = for_scan.next().unwrap_or('\0');
+                    if self.peek == '\0' {
+                        break;
+                    }
+                    if self.peek == '\n'{
+                        self.index+=1;
+                        self.peek = for_scan.next().unwrap_or('\0');
+                        println!("{}", self.peek);
+                        break;
+                    }
+                }
             }
         }
 
@@ -112,24 +143,22 @@ impl Lexer {
             }
         }
 
-        if char::is_alphabetic(self.peek){
-            let mut result ="".to_owned();
-            loop{
+        if char::is_alphabetic(self.peek) {
+            let mut result = "".to_owned();
+            loop {
                 self.index += 1;
                 result.push(self.peek);
                 self.peek = for_scan.next().unwrap_or_else(|| '\0');
-                if !char::is_alphabetic(self.peek){
-                    let word = Word::new(result.clone());
-                    let id = Id::new(result.to_owned());
-                    if self.words.get(&word).is_none() && self.ids.get(&id).is_none(){
-                        self.ids.insert(id.clone(),id.id.clone());
-                        return Box::new(Word::new(result.to_string()))
+                if !char::is_alphabetic(self.peek) {
+                    if self.words.get(&result).is_none() {
+                        let word = Word::new(Tag::WORD, result.clone());
+                        self.words.insert(result.clone(), word.clone());
+                        return Box::new(word);
                     }
                 }
             }
         }
-
-        return Box::new(Word::new("EOF".to_string()))
+        return Box::new(Word::new(Tag::WORD, "EOF".to_string()));
     }
 }
 
@@ -138,21 +167,25 @@ mod tests {
     #[test]
     fn init_lexer_test() {
         use super::*;
-        let l = Lexer::new();
+        let mut l = Lexer::new();
         assert_eq!(l.peek, ' ');
         assert_eq!(l.line, 1);
-        let tr = Word::new("TRUE".to_owned());
-        assert_eq!(l.words.get(&tr).unwrap().to_owned(), "true".to_string());
+        let tr = Word::new(Tag::WORD, "id".to_owned());
+        l.reserve(tr);
+        assert_eq!(l.words.get("TRUE").unwrap().to_owned().tag, Tag::TRUE);
+        assert_eq!(l.words.get("id").unwrap().to_owned().tag, Tag::WORD);
     }
 
     #[test]
     fn scan_string_test() {
         use super::*;
         let mut l = Lexer::new();
-        let cur = l.line;
-        while l.line != -1  {
-            println!("get token: {:?}", l.scan_string("123 234  hello  ").deref());
-
+        while l.line != -1 {
+            let a = l.scan("123 234  hello\n now be //    asdasdfasd\nas");
+            println!("get token: {:?}", a.deref());
+            if &a.value()[..] == "EOF" {
+                break;
+            }
         }
     }
 }

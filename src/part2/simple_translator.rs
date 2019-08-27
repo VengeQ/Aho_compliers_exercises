@@ -1,4 +1,3 @@
-use std::io;
 use std::char;
 use std::str::Chars;
 
@@ -20,7 +19,7 @@ impl<'a> SimpleTranslator<'a> {
     pub fn expr(&mut self) -> Result<String, String> {
         self.lookahead = self.string.next().unwrap_or_else(|| '\n');
         match self.term() {
-            Ok(x) => {}
+            Ok(_) => {}
             Err(e) => return Err(e)
         };
         loop {
@@ -49,6 +48,7 @@ impl<'a> SimpleTranslator<'a> {
         Ok(self.result.to_owned())
     }
 
+    #[allow(dead_code)]
     pub fn show_result(&self) -> String {
         self.result.to_owned()
     }
@@ -56,7 +56,7 @@ impl<'a> SimpleTranslator<'a> {
     fn term(&mut self) -> Result<char, String> {
         if self.lookahead.is_digit(10) {
             self.result += &self.lookahead.to_string();
-            self.matcher(self.lookahead);
+            self.matcher(self.lookahead).unwrap();
             Ok(self.lookahead)
         } else {
             Err("Expected digit".to_owned())
