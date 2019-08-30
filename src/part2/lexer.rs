@@ -7,10 +7,11 @@ use std::str::Chars;
 #[derive(Debug, Ord, PartialOrd, PartialEq, Eq, Hash, Clone)]
 enum Tag {
     NUM,
-    WORD,
+    ID,
     FALSE,
     TRUE,
     OP,
+    EOF
 }
 
 impl PartialEq for dyn Token {
@@ -72,6 +73,7 @@ impl Token for Num {
 
 
 type Words = HashMap<String, Word>;
+type Lines = HashMap<usize, Box<Vec<Box<dyn Token>>>>;
 
 struct Lexer {
     index: usize,
@@ -95,6 +97,7 @@ impl Lexer {
         };
         lexer.words.insert("TRUE".to_owned(), Word::new(Tag::TRUE, "TRUE".to_owned()));
         lexer.words.insert("FALSE".to_owned(), Word::new(Tag::FALSE, "FALSE".to_owned()));
+        lexer.words.insert("EOF".to_owned(), Word::new(Tag::EOF, "EOF".to_owned()));
         lexer.lines.insert(1_usize, Box::new(Vec::new()));
         lexer
     }
@@ -113,6 +116,20 @@ impl Lexer {
         self.peek
     }
 
+    fn return_ptr(&mut self, input: &mut Chars) {
+        self.peek = input.next_back().unwrap_or('\0');
+        self.index -= 1;
+    }
+
+    pub fn full_scan(&mut self, input: &str) -> &Lines {
+        while self.line != -1 {
+            let a = self.scan(input);
+            if &a.value()[..] == "EOF" {
+                break;
+            }
+        }
+        &self.lines
+    }
 
     pub fn scan(&mut self, input: &str) -> Box<dyn Token> {
         let mut for_scan = input.split_at(self.index).1.chars();
@@ -128,8 +145,8 @@ impl Lexer {
                 '\0' => {
                     self.line = -1;
                     self.lines.entry(self.line as usize).and_modify(|x|
-                        x.push(Box::new(Word::new(Tag::WORD, "EOF".to_string()))));
-                    return Box::new(Word::new(Tag::WORD, "EOF".to_string()));
+                        x.push(Box::new(Word::new(Tag::EOF, "EOF".to_string()))));
+                    return Box::new(Word::new(Tag::EOF, "EOF".to_string()));
                 }
                 _ => break
             }
@@ -169,6 +186,23 @@ impl Lexer {
             }
         }
 
+
+        match self.peek{
+            '+' =>{
+                let word = Word::new(Tag::OP, "+".to_owned());
+                self.lines.entry(self.line as usize).and_modify(|x|
+                    x.push(Box::new(word.clone())));
+                return Box::new(word);
+            }
+            '-' =>{
+                let word = Word::new(Tag::OP, "-".to_owned());
+                self.lines.entry(self.line as usize).and_modify(|x|
+                    x.push(Box::new(word.clone())));
+                return Box::new(word);
+            }
+            _ => {}
+        }
+
         //Знаки сравнения
         match self.peek {
             '<' => {
@@ -179,15 +213,53 @@ impl Lexer {
                         x.push(Box::new(word.clone())));
                     return Box::new(word);
                 } else {
+                    self.return_ptr(&mut for_scan);
                     let word = Word::new(Tag::OP, "<".to_owned());
                     self.lines.entry(self.line as usize).and_modify(|x|
                         x.push(Box::new(word.clone())));
                     return Box::new(word);
                 }
             }
-            '!' => {}
-            '>' => {}
-            '=' => {}
+            '!' => {
+                self.read_char_or_return_eof(&mut for_scan);
+                if self.peek == '=' {
+                    self.return_ptr(&mut for_scan);
+                    let word = Word::new(Tag::OP, "!=".to_owned());
+                    self.lines.entry(self.line as usize).and_modify(|x|
+                        x.push(Box::new(word.clone())));
+                    return Box::new(word);
+                }
+            }
+            '>' => {
+                self.read_char_or_return_eof(&mut for_scan);
+                if self.peek == '=' {
+                    let word = Word::new(Tag::OP, ">=".to_owned());
+                    self.lines.entry(self.line as usize).and_modify(|x|
+                        x.push(Box::new(word.clone())));
+                    return Box::new(word);
+                } else {
+                    self.return_ptr(&mut for_scan);
+                    let word = Word::new(Tag::OP, ">".to_owned());
+                    self.lines.entry(self.line as usize).and_modify(|x|
+                        x.push(Box::new(word.clone())));
+                    return Box::new(word);
+                }
+            }
+            '=' => {
+                self.read_char_or_return_eof(&mut for_scan);
+                if self.peek == '=' {
+                    let word = Word::new(Tag::OP, "==".to_owned());
+                    self.lines.entry(self.line as usize).and_modify(|x|
+                        x.push(Box::new(word.clone())));
+                    return Box::new(word);
+                } else {
+                    self.return_ptr(&mut for_scan);
+                    let word = Word::new(Tag::OP, "=".to_owned());
+                    self.lines.entry(self.line as usize).and_modify(|x|
+                        x.push(Box::new(word.clone())));
+                    return Box::new(word);
+                }
+            }
             _ => {}
         }
 
@@ -198,6 +270,7 @@ impl Lexer {
                 result = 10 * result + char::to_digit(self.peek, 10).unwrap();
                 self.read_char_or_return_eof(&mut for_scan);
                 if !char::is_digit(self.peek, 10) {
+                    self.return_ptr(&mut for_scan);
                     self.lines.entry(self.line as usize).and_modify(|x|
                         x.push(Box::new(Num::new(result as i32))));
                     return Box::new(Num::new(result as i32));
@@ -211,21 +284,18 @@ impl Lexer {
                 result.push(self.peek);
                 self.read_char_or_return_eof(&mut for_scan);
                 if !char::is_alphabetic(self.peek) {
-                    //Вернем итератор на предыдущий символ, если текущий не слово
-                    self.peek = for_scan.next_back().unwrap_or('\0');
-                    self.index -= 1;
-                    //
+                    self.return_ptr(&mut for_scan);
+                    let word = Word::new(Tag::ID, result.clone());
                     if self.words.get(&result).is_none() {
-                        let word = Word::new(Tag::WORD, result.clone());
                         self.words.insert(result.clone(), word.clone());
-                        self.lines.entry(self.line as usize).and_modify(|x|
-                            x.push(Box::new(word.clone())));
-                        return Box::new(word);
                     }
+                    self.lines.entry(self.line as usize).and_modify(|x|
+                        x.push(Box::new(word.clone())));
+                    return Box::new(word);
                 }
             }
         }
-        return Box::new(Word::new(Tag::WORD, "EOF".to_string()));
+        return Box::new(Word::new(Tag::EOF, "EOF".to_string()))
     }
 }
 
@@ -237,28 +307,31 @@ mod tests {
         let mut l = Lexer::new();
         assert_eq!(l.peek, ' ');
         assert_eq!(l.line, 1);
-        let tr = Word::new(Tag::WORD, "id".to_owned());
+        let tr = Word::new(Tag::ID, "id".to_owned());
         l.reserve(tr);
         assert_eq!(l.words.get("TRUE").unwrap().to_owned().tag, Tag::TRUE);
-        assert_eq!(l.words.get("id").unwrap().to_owned().tag, Tag::WORD);
+        assert_eq!(l.words.get("id").unwrap().to_owned().tag, Tag::ID);
     }
 
     #[test]
     fn scan_string_test() {
         use super::*;
         let mut l = Lexer::new();
+
+        let input = String::from("a = 3\n") + "b =23\n" + "a + b\n" + "a >= 4\n" + "c!=a";
         while l.line != -1 {
-            let a = l.scan("123 234 <= hello\n now be //    asdasdfasd\nas<\n let 23 /*vasya*\\");
+            let a = l.scan(&input);
             println!("get token: {:?}", a.deref());
             if &a.value()[..] == "EOF" {
                 break;
             }
         }
-
-        let w1: Box<dyn Token> = Box::new(Word::new(Tag::WORD, "now".to_owned()));
-        let w2: Box<dyn Token> = Box::new(Word::new(Tag::WORD, "be".to_owned()));
+        l.words.iter().for_each(|x|println!("w: {:?}", x));
+        let w1: Box<dyn Token> = Box::new(Word::new(Tag::ID, "b".to_owned()));
+        let w2: Box<dyn Token> = Box::new(Word::new(Tag::ID, "=".to_owned()));
+        let w3: Box<dyn Token> = Box::new(Word::new(Tag::ID, "23".to_owned()));
         assert_eq!(l.lines.get(&2_usize).unwrap(),
-                   &Box::new(vec![w1, w2]));
+                   &Box::new(vec![w1, w2, w3]));
         l.lines.iter().for_each(|x| println!("{:?}", x));
     }
 

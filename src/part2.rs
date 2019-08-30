@@ -147,7 +147,7 @@ mod tests {
     #[test]
     fn harmonic_test_smoke() {
         use super::harmonic;
-        println!("{}", harmonic(10e8 as i64));
+        println!("{}", harmonic(10e7 as i64));
     }
 
     #[test]
