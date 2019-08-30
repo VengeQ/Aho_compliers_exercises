@@ -3,6 +3,7 @@ extern crate regex;
 
 mod simple_translator;
 mod lexer;
+mod symbols_table;
 
 use std::borrow::Cow;
 use std::time::Duration;
