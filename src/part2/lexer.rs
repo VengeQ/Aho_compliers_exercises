@@ -31,7 +31,6 @@ impl Debug for dyn Token {
     }
 }
 
-//Использую отдельно ключевые слова
 #[derive(Debug, Ord, PartialOrd, PartialEq, Eq, Hash, Clone)]
 struct Word {
     tag: Tag,

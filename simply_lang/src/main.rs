@@ -1,5 +1,4 @@
-mod part2;
-mod part3;
+mod lexer;
 
 fn main() {
     println!("Hello, world!");

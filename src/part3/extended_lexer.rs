@@ -72,6 +72,8 @@ impl<'a> Lexer {
         hash.insert("number".to_owned(), regex::Regex::new(r"^(\d+(\.\d+)?(([Ee][+-])?\d+)?)").unwrap());
         hash.insert("id".to_owned(), regex::Regex::new(r"^[a-zA-Z]([a-zA-Z0-9])*").unwrap());
         hash.insert("relop".to_owned(), regex::Regex::new(r"^([!=]=|<[=]??|>[=]??)").unwrap());
+        hash.insert("string".to_owned(), regex::Regex::new(r#"^"([^\\])*""#).unwrap());
+      //  hash.insert("string".to_owned(), regex::Regex::new(r#"^"([^\\"]*(\\)*(\\")*)*""#).unwrap());
         hash
     }
 
@@ -119,14 +121,12 @@ impl<'a> Lexer {
         }
     }
     pub fn scan(&mut self, input: &str) -> Option<Token> {
-        println!("{}", self.cur_buffer()[self.lexeme_begin].to_string());
         //Убрать пробелы
         if self.cur_buffer()[self.lexeme_begin].is_whitespace() {
             self.forward = self.cur_buffer()[self.lexeme_begin..self.cur_buffer().len()].iter().take_while(|&x| {
                 *x == '\n' || *x == '\r' || *x == '\t' || *x == ' '
             }).count() + self.forward;
             self.lexeme_begin = self.forward;
-            println!("{}", self.lexeme_begin);
         }
 
         let text = &self.cur_buffer()[self.lexeme_begin..].to_vec().iter().collect::<String>()[..];
@@ -155,11 +155,20 @@ impl<'a> Lexer {
             return Some(Token(m.as_str().to_owned()));
         }
 
+        if let Some(m) = self.tokens.get("string").unwrap().find(text) {
+            self.forward += m.end();
+            self.lexeme_begin = self.forward;
+
+            return Some(Token(m.as_str().to_owned()));
+        }
+
+
+
         if self.is_eof() {
             self.change_buffer(&input);
             None
         } else {
-            panic!("Unexpected token at {}", self.lexeme_begin)
+            panic!("Unexpected token at {} -> {}\n {:?}", self.lexeme_begin, self.cur_buffer()[self.lexeme_begin], &self.cur_buffer()[self.lexeme_begin-1..self.lexeme_begin+1])
         }
     }
     fn clear(&mut self) {
@@ -198,13 +207,13 @@ mod tests {
     #[test]
     fn lexer_eof_test() {
         let mut lexer = Lexer::new();
-        let string_for_scan = "as==112.23\n  142e-1>= s241  2341 hello<me".to_owned();
+        let string_for_scan = "as==112.23\n  142e-1>= s241  2341 hello<me \n\"vas\"ya\"".to_owned();
         //let string_for_scan = "42e-1>= s241".to_owned();
         lexer.init_buffer(string_for_scan.clone());
         let mut a = lexer.scan(&string_for_scan[..]);
         while a != None {
-            println!("{:?}", &a);
-            std::thread::sleep(Duration::from_millis(1000));
+            println!("{}", &a.unwrap().token());
+            //std::thread::sleep(Duration::from_millis(1000));
             a = lexer.scan(&string_for_scan[..]);
         }
     }

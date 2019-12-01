@@ -7,6 +7,9 @@
       <sourceFolder url="file://$MODULE_DIR$/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/../aho_compilers\examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/../aho_compilers\tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/../aho_compilers\benches" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />
